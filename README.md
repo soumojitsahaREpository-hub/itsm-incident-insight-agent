@@ -28,7 +28,7 @@ This project is intentionally local-first and read-only:
 - `src/tools/chart_tool.py` generates PNG charts for supported queries.
 - `src/agent/controller.py` coordinates observation, decision, action, and response.
 
-See `docs/architecture.md` for a visual system breakdown.
+See `docs/architecture.md` for a visual system breakdown. The raw Kaggle dataset is included under `data/raw/` for reproducibility. See `docs/dataset_source.md` for attribution and source details.
 
 ## How it works
 
