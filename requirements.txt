@@ -1,5 +1,6 @@
 duckdb==1.5.4
 matplotlib
 pandas
+pytest
 python-dotenv
 streamlit

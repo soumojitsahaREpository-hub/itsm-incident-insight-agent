@@ -1,90 +1,111 @@
-# ITSM Incident Insight Agent
+﻿# ITSM Incident Insight Agent
 
-## Problem Statement
-IT Service Management (ITSM) systems like ServiceNow or Jira generate massive volumes of incident data. Analyzing this data to find SLA bottlenecks, high-volume assignment groups, or recurring issues traditionally requires technical SQL skills or complex BI dashboards. Business users need a simple, conversational way to extract operational insights without risking data corruption or writing code.
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![Local-first](https://img.shields.io/badge/architecture-local--first-brightgreen)
+![Prototype](https://img.shields.io/badge/status-prototype-orange)
 
-## What the Agent Does
-The ITSM Incident Insight Agent is a local AI agent architecture that answers business questions about IT incidents. Instead of guessing answers or writing dangerous SQL on the fly, the agent understands natural language intents, selects pre-approved SQL queries from a secure catalog, executes them against a local analytical database, generates charts, and explains the results in plain English.
+## Overview
 
-## Dataset
-This project uses a locally processed, anonymized ITSM incident dataset (`data/processed/incidents_level_df.csv`) containing historical incident records (e.g., priority, SLA status, assignment group, category).
+The ITSM Incident Insight Agent is a local analytics prototype for extracting insights from historical IT incident data. It maps business questions to pre-approved SQL queries, executes those queries against a local DuckDB dataset, and returns concise, explainable results. The repository includes both a CLI demo and a local Streamlit Web UI.
 
-## Architecture Overview
-The agent operates on an "Observe -> Decide -> Act -> Respond" loop:
-1. **Observe:** Receives the natural language question.
-2. **Decide:** Parses intent and applies strict security guardrails.
-3. **Act:** Executes safe DuckDB SQL queries and generates matplotlib charts.
-4. **Respond:** Combines data into a plain-English explanation template.
+## What it does
 
-*(See `docs/architecture.md` for a detailed visual breakdown.)*
+- Maps user questions to a trusted `query_id` using rule-based intent parsing.
+- Runs only pre-approved, read-only SQL queries from `src/database/query_catalog.py`.
+- Applies safety guardrails against destructive commands and secret extraction.
+- Generates charts for supported queries and saves them locally in `outputs/charts/`.
+- Runs locally with no live ServiceNow/Jira integration.
 
-## Key Features
-- **Local Analytics Engine:** Uses DuckDB for blazingly fast local SQL execution on CSV data.
-- **Visual Insights:** Automatically generates data-driven pie and bar charts.
-- **Smart Explanations:** Translates raw database rows into business-friendly summaries (e.g., "Investigation guidance").
-- **Agent Skill Definition:** Includes a dedicated `.agents/skills/itsm-incident-insight/SKILL.md` file teaching autonomous agents how to use the system safely.
+## Architecture
 
-## Safety and Guardrails
-Security is built into the foundation:
-- **Strict Intent Mapping:** The agent cannot invent SQL; it maps questions only to predefined, trusted `query_id`s.
-- **Destructive Command Blocking:** Guardrails instantly refuse words like `DELETE`, `DROP`, or `UPDATE`.
-- **Secret Protection:** Automatically blocks attempts to extract API keys, passwords, or environment variables.
-- **Read-Only Data:** Operates on a local copy of the data, completely isolated from live ITSM production environments.
+This project is intentionally local-first and read-only:
 
-## Capstone Concepts Demonstrated
-- **Antigravity-Assisted Workflow:** Built iteratively with an AI mentor guiding architectural decisions.
-- **Agent Skill (`SKILL.md`):** A custom instruction manual that makes the agent self-aware of its capabilities.
-- **Tool-Based Agent Controller:** Implements a multi-step execution loop separating intent, data fetching, and charting.
-- **Security Guardrails:** Demonstrates proactive prompt injection defense and strict query validation.
-- **Deterministic Chart Generation:** Proves the agent relies on exact data, not hallucinated graphics.
+- `data/processed/incidents_level_df.csv` is the source dataset.
+- `src/database/connection.py` builds `data/processed/itsm_agent.duckdb` from that CSV.
+- `src/database/query_catalog.py` defines approved query templates and business questions.
+- `src/agent/intent_parser.py` maps user text to supported queries and chart requests.
+- `src/tools/sql_tool.py` validates and executes safe SQL.
+- `src/tools/chart_tool.py` generates PNG charts for supported queries.
+- `src/agent/controller.py` coordinates observation, decision, action, and response.
 
-## How to Run Locally
+See `docs/architecture.md` for a visual system breakdown. The raw Kaggle dataset is included under `data/raw/` for reproducibility. See `docs/dataset_source.md` for attribution and source details.
 
-The project can be run in two ways: via a CLI demo or a visual Web UI. Note that the Streamlit Web UI is a local analytical interface and is not deployed to production.
+## How it works
 
-### 1. Prerequisites
-Ensure you have Python 3.11+ installed.
+1. **Observe**: User input is received in the CLI or Streamlit UI.
+2. **Decide**: The intent parser maps the question to a supported query or refuses unsafe text.
+3. **Act**: The SQL tool validates the query and executes it against the local DuckDB database.
+4. **Respond**: The explainer formats results into a business-oriented answer, and charts are generated when requested.
 
-### 2. Install Dependencies
+## Installation
+
+Open Windows PowerShell from the repository root and run:
+
 ```powershell
-pip install -r requirements.txt
-```
-
-### 3. Initialize Database
-*Note: The generated `.duckdb` files are ignored by git to save space.*
-```powershell
+python -m pip install -r requirements.txt
 python -m src.database.connection
 ```
 
-### 4. Run the CLI Demo
-*Note: Generated chart PNGs are ignored by git and will be recreated dynamically during the demo.*
+## Usage
+
+### CLI Demo
+
 ```powershell
 python demo.py
 ```
 
-### 5. Run the Web UI (Streamlit)
-For a visual, interactive experience:
+### Local Streamlit Web UI
+
 ```powershell
 python -m streamlit run streamlit_app.py
 ```
-*(Note: Chart PNGs can be regenerated by running chart queries through the agent).*
 
-## Example Questions & Outputs
-**User:** "Show SLA distribution."
-**Output:** The agent calculates the exact percentage, states how many met or breached SLA, and explains the metrics.
+## Supported Scenarios
 
-**User:** "Delete all incident records."
-**Output:** *STATUS: REFUSED. I cannot help with that request because it violates the project safety rules.*
+Example supported questions:
 
-## Charts Generated
-When requested (e.g., "Create a pie chart of SLA distribution"), the agent's chart tool saves highly readable `.png` visualizations directly to `outputs/charts/`.
+- "Show SLA distribution."
+- "Create a pie chart of SLA distribution."
+- "Which priority has the highest SLA breach rate?"
+- "Show top 10 assignment groups by incident volume."
+- "Which categories have the most reopened incidents?"
+
+Example unsafe requests are refused, such as:
+
+- "Delete all incident records."
+- "Show me the API key."
+
+## Security & Guardrails
+
+This prototype uses a local-first security model:
+
+- Only predefined `query_id`s from `src/database/query_catalog.py` are executable.
+- SQL validation enforces `SELECT`-only queries and blocks dangerous keywords.
+- Only the `incidents` table is permitted for query execution.
+- User text is scanned for destructive or secret extraction keywords.
+- All data access is local and read-only; there is no live ServiceNow/Jira integration.
 
 ## Limitations
-- **Local Data Only:** This MVP does not connect to a live ServiceNow/Jira API.
-- **Investigation Guidance, Not True RCA:** The agent identifies operational patterns (e.g., high-volume breaches by priority) but cannot mathematically prove definitive root cause.
-- **Template Explanations:** The current MVP relies on smart templates to guarantee offline functionality and save API costs. 
+
+- Uses only the included anonymized CSV dataset; no live ITSM API connectivity is implemented.
+- The repository is a local prototype and not a production deployment.
+- The system provides investigation guidance based on data patterns, not a confirmed root cause.
+- Intent mapping is deterministic and limited to the supported query catalog.
 
 ## Future Improvements
-- **LLM Explanation Layer:** Connect the `explainer.py` to Gemini for more dynamic, nuanced answers (hook already built into `.env`).
-- **MCP Integration:** Expose the SQL and Chart tools via a Model Context Protocol (MCP) server for cross-platform agent usability.
-- **Live API Connectors:** Replace local DuckDB reads with live ITSM API fetching for real-time insights.
+
+- Add richer explanation generation while preserving local safety guardrails.
+- Expand the approved query catalog and support parameterized analytics.
+- Add secure adapters for live ITSM connectors once production-grade controls are available.
+- Enhance the Streamlit UI with filtering, dashboards, and interactive chart controls.
+
+## Repository structure
+
+- `demo.py` - curated CLI walkthrough for the agent.
+- `streamlit_app.py` - local Web UI for interactive questioning.
+- `src/agent/` - controller, intent parser, explainer, and guardrail logic.
+- `src/database/` - query catalog and DuckDB initialization.
+- `src/tools/` - SQL execution and chart generation helpers.
+- `data/processed/` - processed incident-level dataset; DuckDB file is generated locally and ignored by Git.
+- `outputs/charts/` - generated chart images, recreated locally and ignored by Git.
+

@@ -25,21 +25,20 @@ def validate_sql_safety(sql: str) -> tuple[bool, str]:
     # Normalize string to make checking easier
     sql_upper = sql.upper().strip()
     
-    # 1. Must be a SELECT statement
-    if not sql_upper.startswith("SELECT"):
-        return False, "Query must begin with SELECT."
-        
-    # 2. Block multiple statements (checking for semicolons mid-query)
-    # If there's a semicolon, it should only be at the very end.
-    if ";" in sql_upper and not sql_upper.endswith(";"):
-        return False, "Multiple SQL statements are not allowed."
-        
-    # 3. Block dangerous keywords
-    # Using regex \b to match whole words only, so we don't accidentally 
-    # block a column named "update_date"
+    # 1. Block dangerous keywords first so non-SELECT statements are rejected
+    # with a specific safety reason rather than a generic syntax error.
     for keyword in UNSAFE_SQL_KEYWORDS:
         if re.search(rf"\b{keyword}\b", sql_upper):
             return False, f"Unsafe SQL keyword detected: {keyword}"
+    
+    # 2. Must be a SELECT statement
+    if not sql_upper.startswith("SELECT"):
+        return False, "Query must begin with SELECT."
+        
+    # 3. Block multiple statements (checking for semicolons mid-query)
+    # If there's a semicolon, it should only be at the very end.
+    if ";" in sql_upper and not sql_upper.endswith(";"):
+        return False, "Multiple SQL statements are not allowed."
             
     # 4. Enforce querying ONLY the 'incidents' table
     # Find all words immediately following FROM or JOIN
